@@ -6,7 +6,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use tar::Archive;
 
-
 #[derive(Debug)]
 enum ParseError {
     IOError(std::io::Error),
@@ -49,13 +48,11 @@ impl From<serde_json::Error> for ParseError {
     }
 }
 
-
 // impl From<> for ParseError {
 //     fn from(error: std::io::Error) -> Self {
 //         ParseError::IOError(error)
 //     }
 // }
-
 
 #[derive(Deserialize, Debug)]
 struct Version {
@@ -96,7 +93,6 @@ struct ArtifactDepends {
     device_type: Vec<String>,
     artifact_group: Option<String>,
 }
-
 
 #[derive(Deserialize, Debug)]
 struct ArtifactProvides {
@@ -150,12 +146,16 @@ struct Header {
 }
 
 impl Header {
-    fn parse<R>(tar: R) -> std::result::Result<Header, ParseError> where R: Read + Sized {
+    fn parse<R>(tar: R) -> std::result::Result<Header, ParseError>
+    where
+        R: Read + Sized,
+    {
         let mut archive = Archive::new(tar);
         let mut entries = archive.entries()?.peekable();
         let entry = entries
             .next()
-            .expect("Failed to get the header-info from header.tar").unwrap();
+            .expect("Failed to get the header-info from header.tar")
+            .unwrap();
         let hdr_info = entry.header();
         println!("Header Info: {:?}", hdr_info);
         let header_info: HeaderInfo =
@@ -173,14 +173,34 @@ impl Header {
                 continue; // Discard scripts
             }
             // First entry should be the type-info
-            let type_info: TypeInfo = serde_json::from_reader(entry_owned).expect("failed to parse the type-info");
+            let type_info: TypeInfo =
+                serde_json::from_reader(entry_owned).expect("failed to parse the type-info");
             // TODO -- Parse metadata
-            let subheader: SubHeader =
-                SubHeader{type_info: type_info, meta_data: None};
+            let subheader: SubHeader = SubHeader {
+                type_info: type_info,
+                meta_data: None,
+            };
             header.headers.push(subheader);
         }
         Ok(header)
     }
+}
+
+struct Payload {
+    name: String,
+    reader: Box<std::io::Read>,
+}
+
+impl Read for Payload {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        return self.reader.read(buf);
+    }
+}
+
+struct MenderArtifact {
+    version: Version,
+    header: Header,
+    payload: Vec<Payload>,
 }
 
 fn main() {
@@ -190,7 +210,7 @@ fn main() {
     let file = File::open("mender-demo-artifact.mender").expect("Failed to open file");
     // let mut zip = zip::ZipArchive::new(file).expect("Failed to unzip the file");
     // let zipfile = zip.by_index(0).unwrap();
-    let mut a = Archive::new(file);
+    let mut a  = Archive::new(file);
     let mut entries = a.entries().unwrap();
 
     // let mut parser = Parser::new("foo.tar");
@@ -214,22 +234,20 @@ fn main() {
     // Expect `header.tar.gz`
     // assert_eq!(header_info.path()?.to_string(), "header.tar.gz");
     // Unzip the header
-    let tar = GzDecoder::new(entry);
+    let mut tar = GzDecoder::new(entry);
     let header = Header::parse(tar).expect("Failed to parse the `header.tar`");
-    // let manifest: Manifest = serde_json::from_reader(entry).expect("Failed to read manifest");
-    // for file in a.entries().unwrap() {
-    //     // Make sure there wasn't an I/O error
-    //     let mut file = file.unwrap();
-
-    //     // Inspect metadata about the file
-    //     println!("{:?}", file.header().path().unwrap());
-    //     println!("{}", file.header().size().unwrap());
-
-    //     // files implement the Read trait
-    //     let mut s = String::new();
-    //     file.read_to_string(&mut s).unwrap();
-    //     println!("{}", s);
-    // }
+    // Expect `data`
+    entry = entries.next().unwrap().unwrap();
+    if !entry.path().unwrap().starts_with("data") {
+        eprintln!("No data contained in the artifact!");
+        return;
+    }
+    // Unzip the data
+    tar = GzDecoder::new(entry);
+    // let payload = Payload {
+    //     name: "foobar".to_string(),
+    //     reader: Box::new(tar),
+    // };
 }
 
 #[cfg(test)]
