@@ -48,12 +48,6 @@ impl From<serde_json::Error> for ParseError {
     }
 }
 
-// impl From<> for ParseError {
-//     fn from(error: std::io::Error) -> Self {
-//         ParseError::IOError(error)
-//     }
-// }
-
 #[derive(Deserialize, Debug)]
 struct Version {
     format: String,
@@ -139,6 +133,7 @@ struct SubHeader {
     meta_data: Option<std::collections::HashMap<String, String>>,
 }
 
+#[derive(Debug)]
 struct Header {
     header_info: HeaderInfo,
     // Scripts are ignored for now
@@ -186,64 +181,110 @@ impl Header {
     }
 }
 
-struct Payload {
+struct Payload<'a> {
     name: String,
-    reader: Box<std::io::Read>,
+    reader: flate2::read::GzDecoder<tar::Entry<'a, &'a mut std::fs::File>>,
 }
 
-impl Read for Payload {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-        return self.reader.read(buf);
+// impl Read for Payload {
+//     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+//         return self.reader.read(buf);
+//     }
+// }
+
+struct MenderArtifact<'a> {
+    version: Option<Version>,
+    manifest: Option<Manifest>,
+    header: Option<Header>,
+    archive: tar::Archive<&'a mut std::fs::File>,
+}
+
+impl<'a> MenderArtifact<'a> {
+    fn new(filename: &'a mut std::fs::File) -> MenderArtifact {
+        let mut archive = Archive::new(filename);
+        let mut m = MenderArtifact {
+            archive: archive,
+            version: None,
+            manifest: None,
+            header: None,
+        };
+        m
     }
-}
 
-struct MenderArtifact {
-    version: Version,
-    header: Header,
-    payload: Vec<Payload>,
+    fn parse(
+        &'a mut self,
+        filename: &str,
+    ) -> Result<tar::Entries<'a, &'a mut std::fs::File>, ParseError> {
+        let mut entries = self.archive.entries().unwrap();
+
+        let mut entry: tar::Entry<'a, &'a mut std::fs::File> = entries.next().unwrap().unwrap();
+        // Check that the entry base path name is the same as the one we are expecting
+        let path = entry.header().path().expect("Failed to get the header");
+        if !path.ends_with("version") {
+            return Err(ParseError::ParseError(String::from("Unexpected header")));
+        }
+
+
+        let version: Version =
+            serde_json::from_reader(entry).expect("Failed to parse the Version header");
+        println!("{:?}", version);
+
+
+        entry = entries.next().unwrap().unwrap();
+        // Check that the entry base path name is the same as the one we are expecting
+        let path = entry.header().path().expect("Failed to get the header");
+        if !path.ends_with("manifest") {
+            return Err(ParseError::ParseError(String::from("Unexpected header")));
+        }
+
+
+        let manifest = Manifest::parse(entry);
+        println!("{:?}", manifest);
+
+        entry = entries.next().unwrap().unwrap();
+        // Check that the entry base path name is the same as the one we are expecting
+        let path = entry.header().path().expect("Failed to get the header");
+        if !path.ends_with("header.tar.gz") {
+            return Err(ParseError::ParseError(String::from("Unexpected header")));
+        }
+
+
+        let tar = GzDecoder::new(entry);
+        let header = Header::parse(tar).expect("Failed to parse the `header.tar`");
+        println!("{:?}", header);
+
+        // TODO -- Wrap the remaining entries in a `Payload` which can be read from, and later,
+        // checks the checksum for the payload once it is finished.
+        // entry = entries.next().unwrap().unwrap();
+        // // Check that the entry base path name is the same as the one we are expecting
+        // let path = entry.header().path().expect("Failed to get the header");
+        // if !path.starts_with("data") {
+        //     return Err(ParseError::ParseError(String::from("Unexpected header")));
+        // }
+
+        return Ok(entries); // Return the paylaods
+    }
+
 }
 
 fn main() {
     simple_logger::init_with_level(log::Level::Debug).unwrap();
     debug!("Starting Mender artifact...");
 
-    let file = File::open("mender-demo-artifact.mender").expect("Failed to open file");
-    // let mut zip = zip::ZipArchive::new(file).expect("Failed to unzip the file");
-    // let zipfile = zip.by_index(0).unwrap();
-    let mut a  = Archive::new(file);
-    let mut entries = a.entries().unwrap();
+    let mut file = File::open("mender-demo-artifact.mender").expect("Failed to open file");
+    let mut ma = MenderArtifact::new(&mut file);
+    let mut payloads = ma.parse("booboo");
 
-    // let mut parser = Parser::new("foo.tar");
-    // Expect Version
-    let mut entry = entries.next().unwrap().unwrap();
-    let header_info = entry.header();
-    println!("{:?}", header_info);
 
-    let version: Version =
-        serde_json::from_reader(entry).expect("Failed to parse the Version header");
-    println!("{:?}", version);
-
-    entry = entries.next().unwrap().unwrap();
-    println!("{:?}", entry.header());
-
-    let manifest = Manifest::parse(entry);
-
-    entry = entries.next().unwrap().unwrap();
-    let header_info = entry.header();
-    println!("Header info: {:?}", header_info);
-    // Expect `header.tar.gz`
-    // assert_eq!(header_info.path()?.to_string(), "header.tar.gz");
-    // Unzip the header
-    let mut tar = GzDecoder::new(entry);
-    let header = Header::parse(tar).expect("Failed to parse the `header.tar`");
-    // Expect `data`
-    entry = entries.next().unwrap().unwrap();
-    if !entry.path().unwrap().starts_with("data") {
-        eprintln!("No data contained in the artifact!");
-        return;
+    let entry = payloads.unwrap().next().unwrap().unwrap();
+    // Check that the entry base path name is the same as the one we are expecting
+    let path = entry.header().path().expect("Failed to get the header");
+    if !path.starts_with("data") {
+        eprintln!("No data found in artifact");
     }
-    // Unzip the data
-    tar = GzDecoder::new(entry);
+
+    // // Unzip the data
+    // tar = GzDecoder::new(entry);
     // let payload = Payload {
     //     name: "foobar".to_string(),
     //     reader: Box::new(tar),
