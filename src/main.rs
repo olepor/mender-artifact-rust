@@ -271,7 +271,7 @@ fn main() {
     simple_logger::init_with_level(log::Level::Debug).unwrap();
     debug!("Starting Mender artifact...");
 
-    let mut file = File::open("mender-demo-artifact.mender").expect("Failed to open file");
+    let mut file = File::open("resources/tests/mender-demo-artifact.mender").expect("Failed to open file");
     let mut ma = MenderArtifact::new(&mut file);
     let mut payloads = ma.parse("booboo");
 
