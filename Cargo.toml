@@ -1,8 +1,12 @@
 [package]
-name = "mender-artifact"
-version = "0.1.0"
+name = "mender_artifact"
+version = "0.1.1"
 authors = ["Ole Petter <olepor@matnat.uio.no>"]
 edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["dylib"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] } # Derive Deserialization for the config struct
