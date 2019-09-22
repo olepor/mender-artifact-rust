@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 path = "src/lib.rs"
-crate-type = ["dylib"]
+# crate-type = ["dylib"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] } # Derive Deserialization for the config struct
