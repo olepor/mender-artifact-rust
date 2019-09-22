@@ -1,8 +1,18 @@
 [package]
 name = "mender_artifact"
+license = "AGPL-3.0-or-later"
+description = "Alpha version parser for the Mender-Artifact version 3 format"
+homepage = "https://github.com/olepor/mender-artifact-rust"
+documentation = "https://github.com/olepor/mender-artifact-rust"
+repository = "https://github.com/olepor/mender-artifact-rust"
 version = "0.1.1"
 authors = ["Ole Petter <olepor@matnat.uio.no>"]
 edition = "2018"
+
+# Exclude the mender-demo-artifact from publishing to Crates.io
+exlude = [
+       "resources/*",
+]
 
 [lib]
 path = "src/lib.rs"
