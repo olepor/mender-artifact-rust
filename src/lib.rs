@@ -196,12 +196,12 @@ pub struct MenderArtifact<'a> {
     version: Option<Version>,
     manifest: Option<Manifest>,
     header: Option<Header>,
-    archive: tar::Archive<&'a mut std::fs::File>,
+    archive: tar::Archive<&'a mut std::io::Read>,
 }
 
 impl<'a> MenderArtifact<'a> {
-    pub fn new(filename: &'a mut std::fs::File) -> MenderArtifact {
-        let mut archive = Archive::new(filename);
+    pub fn new(reader: &'a mut std::io::Read) -> MenderArtifact {
+        let mut archive = Archive::new(reader);
         let mut m = MenderArtifact {
             archive: archive,
             version: None,
@@ -214,10 +214,10 @@ impl<'a> MenderArtifact<'a> {
     pub fn parse(
         &'a mut self,
         filename: &str,
-    ) -> Result<tar::Entries<'a, &'a mut std::fs::File>, ParseError> {
+    ) -> Result<tar::Entries<'a, &'a mut std::io::Read>, ParseError> {
         let mut entries = self.archive.entries().unwrap();
 
-        let mut entry: tar::Entry<'a, &'a mut std::fs::File> = entries.next().unwrap().unwrap();
+        let mut entry: tar::Entry<'a, &'a mut std::io::Read> = entries.next().unwrap().unwrap();
         // Check that the entry base path name is the same as the one we are expecting
         let path = entry.header().path().expect("Failed to get the header");
         if !path.ends_with("version") {
