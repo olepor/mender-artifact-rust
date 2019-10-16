@@ -167,10 +167,16 @@ impl Header {
             if entry_owned.path()?.starts_with("scripts") {
                 continue; // Discard scripts
             }
+
+            // TODO -- Parse metadata
+            if entry_owned.path()?.ends_with("meta-data") {
+                continue; // Discard Meta-Data
+            }
+
             // First entry should be the type-info
             let type_info: TypeInfo =
                 serde_json::from_reader(entry_owned).expect("failed to parse the type-info");
-            // TODO -- Parse metadata
+            // First entry should be the type-info
             let subheader: SubHeader = SubHeader {
                 type_info: type_info,
                 meta_data: None,
