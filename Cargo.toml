@@ -5,7 +5,7 @@ description = "Alpha version parser for the Mender-Artifact version 3 format"
 homepage = "https://github.com/olepor/mender-artifact-rust"
 documentation = "https://github.com/olepor/mender-artifact-rust"
 repository = "https://github.com/olepor/mender-artifact-rust"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Ole Petter <olepor@matnat.uio.no>"]
 edition = "2018"
 
