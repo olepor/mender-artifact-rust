@@ -188,15 +188,82 @@ impl Header {
 }
 
 pub struct Payload<'a> {
-    name: String,
-    reader: flate2::read::GzDecoder<tar::Entry<'a, &'a mut std::fs::File>>,
+    pub name: String,
+
+    // cur_archive is set to /data/0000, /data/0001... etc
+    cur_archive: tar::Archive<flate2::read::GzDecoder<&'a mut tar::Entry<'a, &'a mut (dyn std::io::Read + 'a)>>>,
+
+    // sub_entries: tar::Entries<'a, flate2::read::GzDecoder<tar::Entry<'a, &'a mut (dyn std::io::Read + 'a)>>>,
+    // // read: Option<tar::Entry<'a, std::io::Read>>,
+    entry: tar::Entry<'a, flate2::read::GzDecoder<&'a mut tar::Entry<'a, &'a mut (dyn std::io::Read + 'a)>>>,
 }
 
-// impl Read for Payload {
-//     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
-//         return self.reader.read(buf);
-//     }
-// }
+impl<'a> Payload<'a> {
+
+    // fn new(mut entries: tar::Entries<'a, &'a mut std::io::Read>) -> Result<Payload<'a>, ParseError> {
+    //     // let mut entry = entries.next().unwrap().unwrap(); // Set it to data/0000
+
+    //     // Unzip, and detar the sub-tar in the payload, (i.e. data/0000.tar.gz)
+    //     let mut archive = Archive::new(GzDecoder::new(& mut entries.next().unwrap().unwrap()));
+    //     // Unzipped and untared to /data/0000
+    //     let mut sub_entries = archive.entries().unwrap();
+    //     let mut entry = sub_entries
+    //         .next()
+    //         .expect("Failed to get the payload from data/0000.tar.gz")
+    //         .unwrap();
+    //     // let hdr_info = entry.header();
+    //     // println!("Header Info: {:?}", hdr_info);
+    //     let payload = Payload {
+    //         name: String::from("foobar"),
+    //         cur_archive: archive,
+    //         // sub_entries: sub_entries,
+    //         entry: entry,
+    //         // read: None,
+    //     };
+    //     return Ok(payload);
+    // }
+
+
+    // fn next(&mut self) -> Result<(), ParseError> {
+    //     let entry = self.cur_archive.entries()?.next().unwrap().unwrap();
+    //     self.read = Some(entry);
+    //     Ok(())
+    // }
+
+}
+
+impl <'a>Read for Payload<'a> {
+
+    // // Get next update, or nil
+    // fn next(&mut self) {
+    // }
+
+
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+        // let mut entry = self.entries.next().unwrap().unwrap(); // Set it to data/0000
+
+        let mut n: usize = 0;
+
+        // self.cur_archive.entries()?
+        //     .filter_map(|e| e.ok())
+        //     .map(|mut entry| -> Result<usize, std::io::Error> {
+        //         println!("Entry name: {}", entry.path());
+        //         entry.read(buf)
+        //     })
+        //     .filter_map(|e| e.ok())
+        //     .for_each(|x| n += x);
+
+        // for (i, file) in self.cur_archive.entries().unwrap().enumerate() {
+        //     let mut file = file.unwrap();
+        //     // file.unpack(format!("file-{}", i)).unwrap();
+        //     n += file.read(buf).unwrap();
+
+        // }
+
+        // println!("bytes read from update: {}", n);
+        return Ok(n);
+    }
+}
 
 pub struct MenderArtifact<'a> {
     version: Option<Version>,
@@ -220,7 +287,7 @@ impl<'a> MenderArtifact<'a> {
     pub fn parse(
         &'a mut self,
         filename: &str,
-    ) -> Result<tar::Entries<'a, &'a mut std::io::Read>, ParseError> {
+    ) -> Result<(), ParseError> {
         let mut entries = self.archive.entries().unwrap();
 
         let mut entry: tar::Entry<'a, &'a mut std::io::Read> = entries.next().unwrap().unwrap();
@@ -268,7 +335,33 @@ impl<'a> MenderArtifact<'a> {
         //     return Err(ParseError::ParseError(String::from("Unexpected header")));
         // }
 
-        return Ok(entries); // Return the paylaods
+        // NOTE -- Assuming un-augmented Artifact, next should be the data sections...
+
+        entry = entries.next().unwrap().unwrap(); // Set it to data/0000
+
+        // Unzip, and detar the sub-tar in the payload, (i.e. data/0000.tar.gz)
+        let mut decoder = GzDecoder::new(&mut entry);
+        let mut archive = Archive::new(decoder);
+        let mut sub_entries = archive.entries()?;
+        let mut entry = sub_entries.next().unwrap().unwrap();
+        let hdr_info = entry.header();
+        println!("Header Info: {:?}", hdr_info);
+
+        let mut out_file = std::fs::File::create(filename)?;
+        // let stdout = std::io::stdout();
+        // let mut stdout = stdout.lock();
+        let read = std::io::copy(&mut entry, &mut out_file)?;
+
+        println!("Read: {} bytes into: {}", read, filename);
+
+        // let mut payload = Payload {
+        //     name: "data/0000.tar.gz".to_string(),
+        //     entries,
+        //     cur_entry: entry,
+        // };
+        // let payload = Payload::new(entries);
+
+        return Ok(());
     }
 
 }

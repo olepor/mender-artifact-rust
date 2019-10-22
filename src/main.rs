@@ -14,17 +14,21 @@ fn main() {
     debug!("Starting Mender artifact...");
 
     let filepath = std::env::args().nth(1).expect("No artifact path given");
+    let outfile = std::env::args().nth(2).expect("No out file given");
     let mut file = File::open(filepath).expect("Failed to open file");
     let mut ma = lib::MenderArtifact::new(&mut file);
-    let mut payloads = ma.parse("booboo");
+    let mut payloads = ma.parse(&outfile).unwrap();
 
 
-    let entry = payloads.unwrap().next().unwrap().unwrap();
-    // Check that the entry base path name is the same as the one we are expecting
-    let path = entry.header().path().expect("Failed to get the header");
-    if !path.starts_with("data") {
-        eprintln!("No data found in artifact");
-    }
+    // let stdout = std::io::stdout();
+    // let mut stdout = stdout.lock();
+    // std::io::copy(&mut payloads, &mut stdout);
+    // let entry = payloads.unwrap().next().unwrap().unwrap();
+    // // Check that the entry base path name is the same as the one we are expecting
+    // let path = entry.header().path().expect("Failed to get the header");
+    // if !path.starts_with("data") {
+    //     eprintln!("No data found in artifact");
+    // }
 
     // // Unzip the data
     // tar = GzDecoder::new(entry);
